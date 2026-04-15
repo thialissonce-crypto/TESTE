@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power BI TV Rotator</title>
+  <style>
+    :root {
+      --bg: #000;
+      --fg: #fff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+    }
+
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+
+    .frame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: none;
+      background: #000;
+    }
+
+    .frame.active {
+      display: block;
+      z-index: 2;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+
+    #overlay.hidden {
+      display: none;
+    }
+
+    .panel {
+      width: min(92vw, 520px);
+      background: rgba(20, 20, 20, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 22px;
+      text-align: center;
+    }
+
+    .panel h1 {
+      margin: 0 0 10px;
+      font-size: 26px;
+    }
+
+    .panel p {
+      margin: 0 0 18px;
+      color: rgba(255, 255, 255, 0.78);
+      line-height: 1.45;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #2a2a2a;
+      color: #fff;
+    }
+
+    button.primary {
+      background: #2d7ff9;
+    }
+
+    #hud {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      z-index: 9;
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .chip {
+      background: rgba(0, 0, 0, 0.55);
+      color: rgba(255, 255, 255, 0.92);
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    #status {
+      max-width: 60vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    body.show-hud #hud {
+      display: flex;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <iframe id="frameA" class="frame" title="Power BI A"></iframe>
+    <iframe id="frameB" class="frame" title="Power BI B"></iframe>
+
+    <div id="overlay">
+      <div class="panel">
+        <h1>Painel da TV</h1>
+        <p>Clique em <strong>Iniciar</strong> para abrir o painel em tela cheia e começar a rotação.</p>
+        <div class="actions">
+          <button id="startBtn" class="primary">Iniciar</button>
+          <button id="fullscreenBtn">Tela cheia</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="hud">
+      <div id="status" class="chip">Aguardando início…</div>
+      <div id="countdown" class="chip">--</div>
+    </div>
+  </div>
+
+  <script>
+    const config = {
+      settingsReloadIntervalMinutes: 720,
+      fullscreen: true,
+      autoStart: true,
+      lazyLoadTabs: true,
+      showHud: false,
+      websites: [
+        {
+          url: "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=ReportSectioneaad29fa56dd0bb523ac",
+          duration: 30,
+          tabReloadIntervalSeconds: 1800
+        },
+        {
+          url: "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=02c8892ba1b199e841cd",
+          duration: 30,
+          tabReloadIntervalSeconds: 1800
+        }
+      ]
+    };
+
+    const frameA = document.getElementById("frameA");
+    const frameB = document.getElementById("frameB");
+    const overlay = document.getElementById("overlay");
+    const startBtn = document.getElementById("startBtn");
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    const statusEl = document.getElementById("status");
+    const countdownEl = document.getElementById("countdown");
+
+    if (config.showHud) {
+      document.body.classList.add("show-hud");
+    }
+
+    let started = false;
+    let currentIndex = 0;
+    let activeFrame = frameA;
+    let standbyFrame = frameB;
+    let switchTimer = null;
+    let countdownTimer = null;
+    let settingsReloadTimer = null;
+    let currentSiteStartedAt = 0;
+    const lastReloadAtBySite = new Map();
+    const frameUrlMap = new Map();
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function loadIntoFrame(frame, url) {
+      const current = frameUrlMap.get(frame);
+      if (current === url) return;
+      frameUrlMap.set(frame, url);
+      frame.src = url;
+    }
+
+    function forceReloadIntoFrame(frame, url) {
+      frameUrlMap.set(frame, url);
+      frame.src = "about:blank";
+      setTimeout(() => {
+        frame.src = url;
+      }, 150);
+    }
+
+    function setFrameVisible(frame) {
+      frame.classList.add("active");
+    }
+
+    function setFrameHidden(frame) {
+      frame.classList.remove("active");
+    }
+
+    function enterFullscreen() {
+      if (!config.fullscreen) return;
+
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      }
+    }
+
+    function startCountdown(seconds) {
+      let remaining = seconds;
+      countdownEl.textContent = `${remaining}s`;
+
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+      }
+
+      countdownTimer = setInterval(() => {
+        remaining -= 1;
+        countdownEl.textContent = `${Math.max(remaining, 0)}s`;
+
+        if (remaining <= 0) {
+          clearInterval(countdownTimer);
+        }
+      }, 1000);
+    }
+
+    function clearAllTimers() {
+      if (switchTimer) clearTimeout(switchTimer);
+      if (countdownTimer) clearInterval(countdownTimer);
+      if (settingsReloadTimer) clearInterval(settingsReloadTimer);
+    }
+
+    function shouldReloadSite(siteIndex) {
+      const site = config.websites[siteIndex];
+      const intervalMs = Math.max(1, site.tabReloadIntervalSeconds) * 1000;
+      const lastReloadAt = lastReloadAtBySite.get(siteIndex) || 0;
+      return Date.now() - lastReloadAt >= intervalMs;
+    }
+
+    function markSiteReload(siteIndex) {
+      lastReloadAtBySite.set(siteIndex, Date.now());
+    }
+
+    function showCurrentSite(forceReload = false) {
+      const site = config.websites[currentIndex];
+
+      if (forceReload || shouldReloadSite(currentIndex)) {
+        forceReloadIntoFrame(activeFrame, site.url);
+        markSiteReload(currentIndex);
+      } else {
+        loadIntoFrame(activeFrame, site.url);
+      }
+
+      currentSiteStartedAt = Date.now();
+      setStatus(`Exibindo página ${currentIndex + 1} de ${config.websites.length}`);
+      startCountdown(Math.max(1, site.duration));
+
+      if (switchTimer) clearTimeout(switchTimer);
+      switchTimer = setTimeout(switchToNextSite, Math.max(1, site.duration) * 1000);
+    }
+
+    function switchToNextSite() {
+      const nextIndex = (currentIndex + 1) % config.websites.length;
+      const nextSite = config.websites[nextIndex];
+
+      if (shouldReloadSite(nextIndex)) {
+        forceReloadIntoFrame(standbyFrame, nextSite.url);
+        markSiteReload(nextIndex);
+      } else {
+        loadIntoFrame(standbyFrame, nextSite.url);
+      }
+
+      setFrameHidden(activeFrame);
+      setFrameVisible(standbyFrame);
+
+      const oldActive = activeFrame;
+      activeFrame = standbyFrame;
+      standbyFrame = oldActive;
+      currentIndex = nextIndex;
+
+      showCurrentSite(false);
+    }
+
+    function setupSettingsReload() {
+      const intervalMs = Math.max(1, config.settingsReloadIntervalMinutes) * 60 * 1000;
+
+      settingsReloadTimer = setInterval(() => {
+        setStatus("Recarregando a aplicação…");
+        window.location.reload();
+      }, intervalMs);
+    }
+
+    function startRotation() {
+      if (started) return;
+      started = true;
+
+      overlay.classList.add("hidden");
+      enterFullscreen();
+      clearAllTimers();
+
+      currentIndex = 0;
+      activeFrame = frameA;
+      standbyFrame = frameB;
+
+      setFrameVisible(activeFrame);
+      setFrameHidden(standbyFrame);
+
+      showCurrentSite(true);
+      setupSettingsReload();
+    }
+
+    startBtn.addEventListener("click", startRotation);
+    fullscreenBtn.addEventListener("click", enterFullscreen);
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden || !started) return;
+
+      const currentSite = config.websites[currentIndex];
+      const elapsedSeconds = Math.floor((Date.now() - currentSiteStartedAt) / 1000);
+
+      if (elapsedSeconds >= currentSite.duration) {
+        switchToNextSite();
+      } else {
+        startCountdown(Math.max(0, currentSite.duration - elapsedSeconds));
+      }
+    });
+
+    window.addEventListener("beforeunload", clearAllTimers);
+
+    if (config.autoStart) {
+      startRotation();
+    }
+  </script>
+</body>
+</html>
