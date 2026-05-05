@@ -3,16 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Power BI TV Rotator</title>
+  <title>Power BI TV Rotator - Otimizado</title>
   <style>
     :root {
       --bg: #000;
       --fg: #fff;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     html, body {
       margin: 0;
@@ -31,19 +29,30 @@
       background: #000;
     }
 
+    /*
+      IMPORTANTE:
+      Não usamos display:none nos iframes.
+      O Power BI pode calcular o tamanho errado quando carrega escondido com display:none.
+      Por isso os frames ficam sempre com tamanho real, apenas invisíveis.
+    */
     .frame {
       position: absolute;
       inset: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       border: 0;
-      display: none;
       background: #000;
+      opacity: 0;
+      visibility: hidden;
+      z-index: 1;
+      pointer-events: none;
     }
 
     .frame.active {
-      display: block;
+      opacity: 1;
+      visibility: visible;
       z-index: 2;
+      pointer-events: auto;
     }
 
     #overlay {
@@ -56,9 +65,7 @@
       background: #000;
     }
 
-    #overlay.hidden {
-      display: none;
-    }
+    #overlay.hidden { display: none; }
 
     .panel {
       width: min(92vw, 520px);
@@ -98,9 +105,7 @@
       color: #fff;
     }
 
-    button.primary {
-      background: #2d7ff9;
-    }
+    button.primary { background: #2d7ff9; }
 
     #hud {
       position: absolute;
@@ -130,20 +135,19 @@
       text-overflow: ellipsis;
     }
 
-    body.show-hud #hud {
-      display: flex;
-    }
+    body.show-hud #hud { display: flex; }
   </style>
 </head>
 <body>
   <div id="app">
-    <iframe id="frameA" class="frame" title="Power BI A"></iframe>
-    <iframe id="frameB" class="frame" title="Power BI B"></iframe>
+    <iframe id="frame0" class="frame active" title="Power BI 1"></iframe>
+    <iframe id="frame1" class="frame" title="Power BI 2"></iframe>
+    <iframe id="frame2" class="frame" title="Power BI 3"></iframe>
 
     <div id="overlay">
       <div class="panel">
         <h1>Painel da TV</h1>
-        <p>Clique em <strong>Iniciar</strong> para abrir o painel em tela cheia e começar a rotação.</p>
+        <p>Clique em <strong>Iniciar</strong> para abrir em tela cheia e começar a rotação.</p>
         <div class="actions">
           <button id="startBtn" class="primary">Iniciar</button>
           <button id="fullscreenBtn">Tela cheia</button>
@@ -159,166 +163,128 @@
 
   <script>
     const config = {
-      settingsReloadIntervalMinutes: 720,
       fullscreen: true,
       autoStart: true,
-      lazyLoadTabs: false,
       showHud: false,
+
+      // Tempo para trocar de relatório.
+      durationSeconds: 35,
+
+      // Reload invisível dos relatórios escondidos: 30 minutos.
+      // O relatório que estiver aparecendo não é recarregado naquele momento.
+      tabReloadIntervalSeconds: 1800,
+
+      // Reload da página HTML inteira: 12 horas.
+      appReloadIntervalMinutes: 720,
+
       websites: [
-        {
-          url: "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=8c65a5bd9dc5ea7ecb42",
-          duration: 35,
-          tabReloadIntervalSeconds: 1800
-        },
-        {
-          url: "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=cc948bfb5e8b00603019",
-          duration: 35,
-          tabReloadIntervalSeconds: 1800
-        }
+        "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=8c65a5bd9dc5ea7ecb42",
+        "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=cc948bfb5e8b00603019",
+        "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=02c8892ba1b199e841cd"
       ]
     };
 
-    const frameA = document.getElementById("frameA");
-    const frameB = document.getElementById("frameB");
+    const frames = [
+      document.getElementById("frame0"),
+      document.getElementById("frame1"),
+      document.getElementById("frame2")
+    ];
+
     const overlay = document.getElementById("overlay");
     const startBtn = document.getElementById("startBtn");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const statusEl = document.getElementById("status");
     const countdownEl = document.getElementById("countdown");
 
-    if (config.showHud) {
-      document.body.classList.add("show-hud");
-    }
+    if (config.showHud) document.body.classList.add("show-hud");
 
     let started = false;
     let currentIndex = 0;
-    let activeFrame = frameA;
-    let standbyFrame = frameB;
     let switchTimer = null;
     let countdownTimer = null;
-    let settingsReloadTimer = null;
-    let currentSiteStartedAt = 0;
-    const lastReloadAtBySite = new Map();
-    const frameUrlMap = new Map();
+    let appReloadTimer = null;
+    let reloadTimer = null;
 
     function setStatus(text) {
       statusEl.textContent = text;
     }
 
-    function loadIntoFrame(frame, url) {
-      const current = frameUrlMap.get(frame);
-      if (current === url) return;
-      frameUrlMap.set(frame, url);
-      frame.src = url;
-    }
-
-    function forceReloadIntoFrame(frame, url) {
-      frameUrlMap.set(frame, url);
-      frame.src = "about:blank";
-      setTimeout(() => {
-        frame.src = url;
-      }, 150);
-    }
-
-    function setFrameVisible(frame) {
-      frame.classList.add("active");
-    }
-
-    function setFrameHidden(frame) {
-      frame.classList.remove("active");
-    }
-
     function enterFullscreen() {
       if (!config.fullscreen) return;
-
       const el = document.documentElement;
       if (!document.fullscreenElement && el.requestFullscreen) {
         el.requestFullscreen().catch(() => {});
       }
     }
 
+    function preloadAllFrames() {
+      frames.forEach((frame, index) => {
+        if (!frame.src) {
+          frame.src = config.websites[index];
+        }
+      });
+    }
+
+    function showFrame(index) {
+      frames.forEach((frame, i) => {
+        frame.classList.toggle("active", i === index);
+      });
+
+      currentIndex = index;
+      setStatus(`Exibindo página ${index + 1} de ${frames.length}`);
+      startCountdown(config.durationSeconds);
+    }
+
+    function nextFrame() {
+      const nextIndex = (currentIndex + 1) % frames.length;
+      showFrame(nextIndex);
+
+      clearTimeout(switchTimer);
+      switchTimer = setTimeout(nextFrame, config.durationSeconds * 1000);
+    }
+
     function startCountdown(seconds) {
       let remaining = seconds;
       countdownEl.textContent = `${remaining}s`;
 
-      if (countdownTimer) {
-        clearInterval(countdownTimer);
-      }
-
+      clearInterval(countdownTimer);
       countdownTimer = setInterval(() => {
         remaining -= 1;
         countdownEl.textContent = `${Math.max(remaining, 0)}s`;
-
-        if (remaining <= 0) {
-          clearInterval(countdownTimer);
-        }
+        if (remaining <= 0) clearInterval(countdownTimer);
       }, 1000);
     }
 
-    function clearAllTimers() {
-      if (switchTimer) clearTimeout(switchTimer);
-      if (countdownTimer) clearInterval(countdownTimer);
-      if (settingsReloadTimer) clearInterval(settingsReloadTimer);
+    function reloadHiddenFrames() {
+      frames.forEach((frame, index) => {
+        if (index === currentIndex) return;
+
+        const url = config.websites[index];
+
+        // Reload só dos relatórios escondidos para não aparecer loading na tela.
+        frame.src = "about:blank";
+
+        setTimeout(() => {
+          frame.src = url;
+        }, 300);
+      });
     }
 
-    function shouldReloadSite(siteIndex) {
-      const site = config.websites[siteIndex];
-      const intervalMs = Math.max(1, site.tabReloadIntervalSeconds) * 1000;
-      const lastReloadAt = lastReloadAtBySite.get(siteIndex) || 0;
-      return Date.now() - lastReloadAt >= intervalMs;
-    }
+    function setupTimers() {
+      clearTimeout(switchTimer);
+      clearInterval(reloadTimer);
+      clearInterval(appReloadTimer);
 
-    function markSiteReload(siteIndex) {
-      lastReloadAtBySite.set(siteIndex, Date.now());
-    }
+      switchTimer = setTimeout(nextFrame, config.durationSeconds * 1000);
 
-    function showCurrentSite(forceReload = false) {
-      const site = config.websites[currentIndex];
+      reloadTimer = setInterval(
+        reloadHiddenFrames,
+        config.tabReloadIntervalSeconds * 1000
+      );
 
-      if (forceReload || shouldReloadSite(currentIndex)) {
-        forceReloadIntoFrame(activeFrame, site.url);
-        markSiteReload(currentIndex);
-      } else {
-        loadIntoFrame(activeFrame, site.url);
-      }
-
-      currentSiteStartedAt = Date.now();
-      setStatus(`Exibindo página ${currentIndex + 1} de ${config.websites.length}`);
-      startCountdown(Math.max(1, site.duration));
-
-      if (switchTimer) clearTimeout(switchTimer);
-      switchTimer = setTimeout(switchToNextSite, Math.max(1, site.duration) * 1000);
-    }
-
-    function switchToNextSite() {
-      const nextIndex = (currentIndex + 1) % config.websites.length;
-      const nextSite = config.websites[nextIndex];
-
-      if (shouldReloadSite(nextIndex)) {
-        forceReloadIntoFrame(standbyFrame, nextSite.url);
-        markSiteReload(nextIndex);
-      } else {
-        loadIntoFrame(standbyFrame, nextSite.url);
-      }
-
-      setFrameHidden(activeFrame);
-      setFrameVisible(standbyFrame);
-
-      const oldActive = activeFrame;
-      activeFrame = standbyFrame;
-      standbyFrame = oldActive;
-      currentIndex = nextIndex;
-
-      showCurrentSite(false);
-    }
-
-    function setupSettingsReload() {
-      const intervalMs = Math.max(1, config.settingsReloadIntervalMinutes) * 60 * 1000;
-
-      settingsReloadTimer = setInterval(() => {
-        setStatus("Recarregando a aplicação…");
+      appReloadTimer = setInterval(() => {
         window.location.reload();
-      }, intervalMs);
+      }, config.appReloadIntervalMinutes * 60 * 1000);
     }
 
     function startRotation() {
@@ -327,36 +293,33 @@
 
       overlay.classList.add("hidden");
       enterFullscreen();
-      clearAllTimers();
 
-      currentIndex = 0;
-      activeFrame = frameA;
-      standbyFrame = frameB;
+      preloadAllFrames();
 
-      setFrameVisible(activeFrame);
-      setFrameHidden(standbyFrame);
-
-      showCurrentSite(true);
-      setupSettingsReload();
+      // Pequeno atraso para o navegador calcular o tamanho real dos iframes.
+      setTimeout(() => {
+        showFrame(0);
+        setupTimers();
+      }, 500);
     }
 
     startBtn.addEventListener("click", startRotation);
     fullscreenBtn.addEventListener("click", enterFullscreen);
 
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden || !started) return;
-
-      const currentSite = config.websites[currentIndex];
-      const elapsedSeconds = Math.floor((Date.now() - currentSiteStartedAt) / 1000);
-
-      if (elapsedSeconds >= currentSite.duration) {
-        switchToNextSite();
-      } else {
-        startCountdown(Math.max(0, currentSite.duration - elapsedSeconds));
-      }
+    window.addEventListener("resize", () => {
+      // Força o Power BI a recalcular layout quando muda tela/tamanho.
+      frames.forEach((frame) => {
+        frame.style.width = "100vw";
+        frame.style.height = "100vh";
+      });
     });
 
-    window.addEventListener("beforeunload", clearAllTimers);
+    window.addEventListener("beforeunload", () => {
+      clearTimeout(switchTimer);
+      clearInterval(countdownTimer);
+      clearInterval(appReloadTimer);
+      clearInterval(reloadTimer);
+    });
 
     if (config.autoStart) {
       startRotation();
