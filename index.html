@@ -140,9 +140,10 @@
 </head>
 <body>
   <div id="app">
-    <iframe id="frame0" class="frame active" title="Power BI 1"></iframe>
-    <iframe id="frame1" class="frame" title="Power BI 2"></iframe>
-    <iframe id="frame2" class="frame" title="Power BI 3"></iframe>
+<iframe id="frame0" class="frame active" title="Power BI 1"></iframe>
+<iframe id="frame1" class="frame" title="Power BI 2"></iframe>
+<iframe id="frame2" class="frame" title="Power BI 3"></iframe>
+<iframe id="frame3" class="frame" title="Power BI 4"></iframe>
 
     <div id="overlay">
       <div class="panel">
@@ -180,15 +181,18 @@
       websites: [
         "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=8c65a5bd9dc5ea7ecb42",
         "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=cc948bfb5e8b00603019",
-        "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=02c8892ba1b199e841cd"
+        "https://app.powerbi.com/view?r=eyJrIjoiMDQ0Y2VhNDMtYmVjMC00MzE4LTg2NjUtM2JjMGM1ZjdiYWMzIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=02c8892ba1b199e841cd",
+        "https://app.powerbi.com/view?r=eyJrIjoiMDJjZDJjNGEtY2I3My00NTRkLWEzNDAtN2Q3N2QzZjljZjYxIiwidCI6ImQxODgzN2QxLWM5ZWQtNGVmOS04NWUwLTc5ZDkyMzc0ZTgxMyJ9&pageName=bf8f54d3a940e032bfda"
       ]
     };
 
-    const frames = [
-      document.getElementById("frame0"),
-      document.getElementById("frame1"),
-      document.getElementById("frame2")
-    ];
+const frames = [
+  document.getElementById("frame0"),
+  document.getElementById("frame1"),
+  document.getElementById("frame2"),
+  document.getElementById("frame3")
+];
+    
 
     const overlay = document.getElementById("overlay");
     const startBtn = document.getElementById("startBtn");
